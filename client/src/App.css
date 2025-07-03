@@ -19,6 +19,7 @@
   --accent-orange: #f59e0b;
   --accent-purple: #8b5cf6;
   --accent-red: #ef4444;
+  --accent-pin: #f59e0b;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
@@ -323,18 +324,38 @@ body {
   color: white;
 }
 
+.nav-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
 .count-badge {
   background: var(--bg-tertiary);
   color: var(--text-muted);
   padding: 0.125rem 0.5rem;
   border-radius: 12px;
   font-size: 0.75rem;
-  margin-left: auto;
 }
 
 .nav-item.active .count-badge {
   background: rgba(255, 255, 255, 0.2);
   color: white;
+}
+
+.pinned-badge {
+  background: var(--accent-pin);
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.nav-item.active .pinned-badge {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-pin);
 }
 
 /* Page Container */
@@ -488,6 +509,26 @@ body {
   color: white;
 }
 
+/* Pin Button Styles */
+.pin-btn {
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.pin-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-pin);
+}
+
+.pin-btn.active {
+  color: var(--accent-pin);
+}
+
+.pin-btn.active:hover {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-pin);
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -615,6 +656,18 @@ body {
   background: #2563eb;
 }
 
+/* Pinned Sections */
+.pinned-section {
+  margin-bottom: 2rem;
+}
+
+.pinned-section .section-header h2 {
+  color: var(--accent-pin);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* Google Sheets Page */
 .sheets-grid {
   display: grid;
@@ -633,6 +686,11 @@ body {
 .sheet-card:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
+}
+
+.sheet-card.pinned {
+  border-left: 4px solid var(--accent-pin);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, rgba(245, 158, 11, 0.02) 100%);
 }
 
 .sheet-header {
@@ -775,6 +833,11 @@ body {
 
 .task-card.completed {
   opacity: 0.7;
+}
+
+.task-card.pinned {
+  border-left: 4px solid var(--accent-pin);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(245, 158, 11, 0.02) 100%);
 }
 
 .task-header {
@@ -1390,10 +1453,6 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .files-grid {
-    grid-template-columns: 1fr;
-  }
-
   .toast-container {
     left: 1rem;
     right: 1rem;
@@ -1414,6 +1473,11 @@ body {
 
   .filter-controls select {
     flex: 1;
+  }
+
+  .nav-badges {
+    flex-direction: column;
+    gap: 0.25rem;
   }
 }
 
@@ -1440,5 +1504,10 @@ body {
 
   .theme-options {
     flex-direction: column;
+  }
+
+  .sheet-actions,
+  .task-actions {
+    flex-wrap: wrap;
   }
 }
