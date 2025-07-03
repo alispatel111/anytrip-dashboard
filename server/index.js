@@ -16,7 +16,7 @@ app.use(
     origin: [
       "http://localhost:3000",
       "http://localhost:3001",
-      "https://your-client-deployment.vercel.app", // Replace with your client URL
+      "https://anytrip-erp.vercel.app/", // Replace with your client URL
       /\.vercel\.app$/,
     ],
     credentials: true,
