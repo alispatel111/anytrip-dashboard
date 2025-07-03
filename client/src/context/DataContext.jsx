@@ -33,87 +33,17 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [serverConnected, setServerConnected] = useState(false)
 
-  // Add fallback data at the top of DataProvider
-  const fallbackSheets = [
-    {
-      id: 1,
-      title: "Employee Database",
-      url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
-      status: "pending",
-      lastUpdated: "Just now",
-      category: "HR",
-      description: "Complete employee information and records",
-    },
-    {
-      id: 2,
-      title: "Project Timeline",
-      url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
-      status: "active",
-      lastUpdated: "1 day ago",
-      category: "Project Management",
-      description: "Project milestones and deadlines tracking",
-    },
-  ]
-
-  const fallbackTasks = [
-    {
-      id: 1,
-      title: "Review employee database",
-      description: "Check for missing information and update records",
-      completed: false,
-      priority: "high",
-      dueDate: "2024-01-15",
-      category: "HR",
-    },
-    {
-      id: 2,
-      title: "Update project timeline",
-      description: "Add Q2 milestones and deadlines",
-      completed: true,
-      priority: "medium",
-      dueDate: "2024-01-10",
-      category: "Project Management",
-    },
-  ]
-
-  // Helper function to get clean API URL
-  const getApiUrl = (endpoint) => {
-    const baseUrl = API_BASE_URL.replace(/\/$/, "") // Remove trailing slash
-    const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-    return `${baseUrl}${cleanEndpoint}`
-  }
-
   // Check if server is running
   const checkServerConnection = async () => {
     try {
-      console.log("🔍 Checking server connection...")
-      console.log("API_BASE_URL:", API_BASE_URL)
-
-      const healthUrl = getApiUrl("/api/health")
-      console.log("Health check URL:", healthUrl)
-
-      const response = await fetch(healthUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      console.log("Health check response status:", response.status)
-
+      const response = await fetch(`${API_BASE_URL}/api/health`)
       if (response.ok) {
-        const data = await response.json()
-        console.log("Health check response:", data)
         setServerConnected(true)
         console.log("✅ Connected to server")
         return true
-      } else {
-        console.log("❌ Server health check failed:", response.status)
-        setServerConnected(false)
-        return false
       }
     } catch (error) {
-      console.log("⚠️ Server not available:", error.message)
+      console.log("⚠️ Server not available, using localStorage fallback")
       setServerConnected(false)
       return false
     }
@@ -134,68 +64,90 @@ export const DataProvider = ({ children }) => {
         if (isServerConnected) {
           // Load from server API
           try {
-            console.log("📡 Loading data from server...")
+            const sheetsResponse = await fetch(`${API_BASE_URL}/api/sheets`)
+            const tasksResponse = await fetch(`${API_BASE_URL}/api/tasks`)
 
-            const sheetsUrl = getApiUrl("/api/sheets")
-            const tasksUrl = getApiUrl("/api/tasks")
-
-            console.log("Sheets URL:", sheetsUrl)
-            console.log("Tasks URL:", tasksUrl)
-
-            const [sheetsResponse, tasksResponse] = await Promise.all([fetch(sheetsUrl), fetch(tasksUrl)])
-
-            console.log("Sheets response status:", sheetsResponse.status)
-            console.log("Tasks response status:", tasksResponse.status)
-
-            if (sheetsResponse.ok) {
-              sheetsData = await sheetsResponse.json()
-              console.log("✅ Sheets loaded from server:", sheetsData.length)
-            }
-
-            if (tasksResponse.ok) {
-              tasksData = await tasksResponse.json()
-              console.log("✅ Tasks loaded from server:", tasksData.length)
-            }
+            if (sheetsResponse.ok) sheetsData = await sheetsResponse.json()
+            if (tasksResponse.ok) tasksData = await tasksResponse.json()
           } catch (error) {
-            console.log("❌ Failed to load from server:", error.message)
+            console.log("Failed to load from server, trying local files...")
           }
         }
 
-        // Fallback to local JSON files if server data is empty
+        // Fallback to default data if server data is empty
         if (sheetsData.length === 0) {
-          try {
-            const sheetsResponse = await fetch("/data/sheets.json?" + Date.now())
-            if (sheetsResponse.ok) {
-              sheetsData = await sheetsResponse.json()
-              console.log("✅ Sheets loaded from local file:", sheetsData.length)
-            }
-          } catch (error) {
-            console.log("❌ Failed to load local sheets.json:", error.message)
-          }
+          sheetsData = [
+            {
+              id: 1,
+              title: "Employee Database",
+              url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+              status: "active",
+              lastUpdated: "2 hours ago",
+              category: "HR",
+              description: "Complete employee information and records",
+              pinned: true,
+            },
+            {
+              id: 2,
+              title: "Project Timeline",
+              url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+              status: "active",
+              lastUpdated: "1 day ago",
+              category: "Project Management",
+              description: "Project milestones and deadlines tracking",
+              pinned: false,
+            },
+            {
+              id: 3,
+              title: "Budget Analysis",
+              url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+              status: "pending",
+              lastUpdated: "3 days ago",
+              category: "Finance",
+              description: "Monthly budget analysis and forecasting",
+              pinned: false,
+            },
+          ]
         }
 
         if (tasksData.length === 0) {
-          try {
-            const tasksResponse = await fetch("/data/tasks.json?" + Date.now())
-            if (tasksResponse.ok) {
-              tasksData = await tasksResponse.json()
-              console.log("✅ Tasks loaded from local file:", tasksData.length)
-            }
-          } catch (error) {
-            console.log("❌ Failed to load local tasks.json:", error.message)
-          }
+          tasksData = [
+            {
+              id: 1,
+              title: "Review employee database",
+              description: "Check for missing information and update records",
+              completed: false,
+              priority: "high",
+              dueDate: "2024-01-15",
+              category: "HR",
+              pinned: true,
+            },
+            {
+              id: 2,
+              title: "Update project timeline",
+              description: "Add Q2 milestones and deadlines",
+              completed: true,
+              priority: "medium",
+              dueDate: "2024-01-10",
+              category: "Project Management",
+              pinned: false,
+            },
+            {
+              id: 3,
+              title: "Prepare monthly report",
+              description: "Compile data for monthly performance report",
+              completed: false,
+              priority: "medium",
+              dueDate: "2024-01-20",
+              category: "General",
+              pinned: false,
+            },
+          ]
         }
 
-        // Use fallback data if nothing loaded
-        if (sheetsData.length === 0) {
-          sheetsData = fallbackSheets
-          console.log("📋 Using fallback sheets data")
-        }
-
-        if (tasksData.length === 0) {
-          tasksData = fallbackTasks
-          console.log("📋 Using fallback tasks data")
-        }
+        // Ensure all items have pinned property
+        sheetsData = sheetsData.map((sheet) => ({ ...sheet, pinned: sheet.pinned || false }))
+        tasksData = tasksData.map((task) => ({ ...task, pinned: task.pinned || false }))
 
         setSheets(sheetsData)
         setTasks(tasksData)
@@ -203,32 +155,15 @@ export const DataProvider = ({ children }) => {
         // Save to localStorage as backup
         localStorage.setItem("allSheets", JSON.stringify(sheetsData))
         localStorage.setItem("allTasks", JSON.stringify(tasksData))
-
-        console.log("🎉 Data loading completed!")
       } catch (error) {
-        console.error("❌ Error loading data:", error)
+        console.error("Error loading data:", error)
 
-        // Final fallback to localStorage or default data
+        // Final fallback to localStorage
         const savedSheets = localStorage.getItem("allSheets")
         const savedTasks = localStorage.getItem("allTasks")
 
-        if (savedSheets) {
-          setSheets(JSON.parse(savedSheets))
-          console.log("📦 Loaded sheets from localStorage")
-        } else {
-          setSheets(fallbackSheets)
-          localStorage.setItem("allSheets", JSON.stringify(fallbackSheets))
-          console.log("📋 Using default sheets data")
-        }
-
-        if (savedTasks) {
-          setTasks(JSON.parse(savedTasks))
-          console.log("📦 Loaded tasks from localStorage")
-        } else {
-          setTasks(fallbackTasks)
-          localStorage.setItem("allTasks", JSON.stringify(fallbackTasks))
-          console.log("📋 Using default tasks data")
-        }
+        if (savedSheets) setSheets(JSON.parse(savedSheets))
+        if (savedTasks) setTasks(JSON.parse(savedTasks))
       } finally {
         setLoading(false)
       }
@@ -240,48 +175,39 @@ export const DataProvider = ({ children }) => {
   // Function to update JSON files automatically
   const updateJsonFiles = async (type, data) => {
     try {
-      if (!serverConnected) {
+      if (serverConnected) {
+        const endpoint = type === "sheets" ? "/api/update-sheets" : "/api/update-tasks"
+        const payload = type === "sheets" ? { sheets: data } : { tasks: data }
+
+        console.log(`🔄 Updating ${type} JSON file...`)
+
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log(`✅ ${type} JSON file updated successfully:`, result)
+          return true
+        } else {
+          throw new Error(`Server responded with status: ${response.status}`)
+        }
+      } else {
         console.log(`⚠️ Server not connected, ${type} saved to localStorage only`)
         return false
       }
-
-      const endpoint = type === "sheets" ? "/api/update-sheets" : "/api/update-tasks"
-      const payload = type === "sheets" ? { sheets: data } : { tasks: data }
-      const updateUrl = getApiUrl(endpoint)
-
-      console.log(`🔄 Updating ${type}...`)
-      console.log("Update URL:", updateUrl)
-      console.log("Payload:", payload)
-
-      const response = await fetch(updateUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
-
-      console.log(`Update ${type} response status:`, response.status)
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log(`✅ ${type} updated successfully:`, result)
-        return true
-      } else {
-        const errorText = await response.text()
-        console.error(`❌ Server error (${response.status}):`, errorText)
-        throw new Error(`Server responded with status: ${response.status} - ${errorText}`)
-      }
     } catch (error) {
-      console.error(`❌ Error updating ${type}:`, error.message)
-      console.error("Full error:", error)
+      console.error(`❌ Error updating ${type}:`, error)
       return false
     }
   }
 
   // Update sheets and automatically save to JSON
   const updateSheetsData = async (newSheets) => {
-    console.log("📝 Updating sheets data:", newSheets.length)
     setSheets(newSheets)
     localStorage.setItem("allSheets", JSON.stringify(newSheets))
     await updateJsonFiles("sheets", newSheets)
@@ -289,16 +215,15 @@ export const DataProvider = ({ children }) => {
 
   // Update tasks and automatically save to JSON
   const updateTasksData = async (newTasks) => {
-    console.log("📝 Updating tasks data:", newTasks.length)
     setTasks(newTasks)
     localStorage.setItem("allTasks", JSON.stringify(newTasks))
     await updateJsonFiles("tasks", newTasks)
   }
 
   const addSheet = async (sheetData) => {
-    console.log("➕ Adding new sheet:", sheetData)
     const newSheet = {
       id: Date.now(),
+      pinned: false,
       ...sheetData,
     }
     const updatedSheets = [...sheets, newSheet]
@@ -306,23 +231,26 @@ export const DataProvider = ({ children }) => {
   }
 
   const removeSheet = async (id) => {
-    console.log("🗑️ Removing sheet:", id)
     const updatedSheets = sheets.filter((sheet) => sheet.id !== id)
     await updateSheetsData(updatedSheets)
   }
 
   const updateSheet = async (id, updates) => {
-    console.log("✏️ Updating sheet:", id, updates)
     const updatedSheets = sheets.map((sheet) =>
       sheet.id === id ? { ...sheet, ...updates, lastUpdated: "Just now" } : sheet,
     )
     await updateSheetsData(updatedSheets)
   }
 
+  const toggleSheetPin = async (id) => {
+    const updatedSheets = sheets.map((sheet) => (sheet.id === id ? { ...sheet, pinned: !sheet.pinned } : sheet))
+    await updateSheetsData(updatedSheets)
+  }
+
   const addTask = async (taskData) => {
-    console.log("➕ Adding new task:", taskData)
     const newTask = {
       id: Date.now(),
+      pinned: false,
       ...taskData,
     }
     const updatedTasks = [...tasks, newTask]
@@ -330,39 +258,52 @@ export const DataProvider = ({ children }) => {
   }
 
   const toggleTask = async (id) => {
-    console.log("🔄 Toggling task:", id)
     const updatedTasks = tasks.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task))
     await updateTasksData(updatedTasks)
   }
 
   const removeTask = async (id) => {
-    console.log("🗑️ Removing task:", id)
     const updatedTasks = tasks.filter((task) => task.id !== id)
     await updateTasksData(updatedTasks)
   }
 
   const updateTask = async (id, updates) => {
-    console.log("✏️ Updating task:", id, updates)
     const updatedTasks = tasks.map((task) =>
       task.id === id ? { ...task, ...updates, completed: updates.status === "completed" } : task,
     )
     await updateTasksData(updatedTasks)
   }
 
+  const toggleTaskPin = async (id) => {
+    const updatedTasks = tasks.map((task) => (task.id === id ? { ...task, pinned: !task.pinned } : task))
+    await updateTasksData(updatedTasks)
+  }
+
+  // Helper function to sort items with pinned items first
+  const sortWithPinned = (items) => {
+    return [...items].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1
+      if (!a.pinned && b.pinned) return 1
+      return 0
+    })
+  }
+
   return (
     <DataContext.Provider
       value={{
-        sheets,
-        tasks,
+        sheets: sortWithPinned(sheets),
+        tasks: sortWithPinned(tasks),
         loading,
         serverConnected,
         addSheet,
         removeSheet,
         updateSheet,
+        toggleSheetPin,
         addTask,
         toggleTask,
         removeTask,
         updateTask,
+        toggleTaskPin,
       }}
     >
       {children}
