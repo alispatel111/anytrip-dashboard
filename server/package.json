@@ -1,0 +1,20 @@
+{
+  "name": "anytrip-dashboard-server",
+  "version": "1.0.0",
+  "description": "Backend API for AnyTrip Dashboard",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js",
+    "build": "echo 'No build step required for Node.js server'"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+    

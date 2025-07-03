@@ -1,0 +1,18 @@
+[
+  {
+    "id": 2,
+    "title": "Update project timeline",
+    "description": "Add Q2 milestones and deadlines",
+    "completed": true,
+    "priority": "medium",
+    "dueDate": "2024-01-10",
+    "category": "Project Management"
+  },
+  {
+    "id": 1751529228371,
+    "title": "Hair cut",
+    "description": "",
+    "status": "pending",
+    "completed": false
+  }
+]
