@@ -7,8 +7,6 @@ import Header from "./components/Header"
 import Dashboard from "./pages/Dashboard"
 import GoogleSheets from "./pages/GoogleSheets"
 import Tasks from "./pages/Tasks"
-import UploadFiles from "./pages/UploadFiles"
-import Downloads from "./pages/Downloads"
 import Settings from "./pages/Settings"
 import { ThemeProvider } from "./context/ThemeContext"
 import { DataProvider } from "./context/DataContext"
@@ -32,8 +30,6 @@ function App() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/google-sheets" element={<GoogleSheets />} />
                   <Route path="/tasks" element={<Tasks />} />
-                  <Route path="/upload-files" element={<UploadFiles />} />
-                  <Route path="/downloads" element={<Downloads />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </main>
