@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react"
 
-const DataContext = createContext()
+const DataContext = createContext(undefined)
 
 export const useData = () => {
   const context = useContext(DataContext)
@@ -14,18 +14,26 @@ export const useData = () => {
 
 export const useToast = () => {
   const showToast = (message, type = "info", duration = 3000) => {
-    window.dispatchEvent(
-      new CustomEvent("show-toast", {
-        detail: { message, type, duration },
-      }),
-    )
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("show-toast", {
+          detail: { message, type, duration },
+        }),
+      )
+    }
   }
-
   return { showToast }
 }
 
-// API Base URL - automatically detects environment
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://anytrip-dashboard-server.vercel.app/"
+// API Base URL - fixed for Next.js deployment
+const getApiBaseUrl = () => {
+  if (typeof window === "undefined") {
+    // Server-side
+    return process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || "http://localhost:3001"
+  }
+  // Client-side
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+}
 
 export const DataProvider = ({ children }) => {
   const [sheets, setSheets] = useState([])
@@ -33,23 +41,66 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [serverConnected, setServerConnected] = useState(false)
 
-  // Check if server is running
+  // Check if server is running with better error handling
   const checkServerConnection = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/health`)
+      const API_BASE_URL = getApiBaseUrl()
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
+      const response = await fetch(`${API_BASE_URL}/api/health`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
       if (response.ok) {
         setServerConnected(true)
         console.log("✅ Connected to server")
         return true
+      } else {
+        throw new Error(`Server responded with status: ${response.status}`)
       }
     } catch (error) {
-      console.log("⚠️ Server not available, using localStorage fallback")
+      if (error.name === "AbortError") {
+        console.log("⚠️ Server connection timeout, using localStorage fallback")
+      } else {
+        console.log("⚠️ Server not available, using localStorage fallback:", error.message)
+      }
       setServerConnected(false)
       return false
     }
   }
 
-  // Load data from JSON files
+  // Safe localStorage operations
+  const safeLocalStorage = {
+    getItem: (key) => {
+      try {
+        if (typeof window !== "undefined") {
+          return localStorage.getItem(key)
+        }
+        return null
+      } catch (error) {
+        console.error("Error reading from localStorage:", error)
+        return null
+      }
+    },
+    setItem: (key, value) => {
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(key, value)
+        }
+      } catch (error) {
+        console.error("Error writing to localStorage:", error)
+      }
+    },
+  }
+
+  // Load data with improved error handling
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -62,108 +113,116 @@ export const DataProvider = ({ children }) => {
         let tasksData = []
 
         if (isServerConnected) {
-          // Load from server API
+          // Load from server API with timeout
           try {
-            const sheetsResponse = await fetch(`${API_BASE_URL}/api/sheets`)
-            const tasksResponse = await fetch(`${API_BASE_URL}/api/tasks`)
+            const API_BASE_URL = getApiBaseUrl()
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-            if (sheetsResponse.ok) sheetsData = await sheetsResponse.json()
-            if (tasksResponse.ok) tasksData = await tasksResponse.json()
+            const [sheetsResponse, tasksResponse] = await Promise.allSettled([
+              fetch(`${API_BASE_URL}/api/sheets`, {
+                method: "GET",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                signal: controller.signal,
+              }),
+              fetch(`${API_BASE_URL}/api/tasks`, {
+                method: "GET",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                signal: controller.signal,
+              }),
+            ])
+
+            clearTimeout(timeoutId)
+
+            if (sheetsResponse.status === "fulfilled" && sheetsResponse.value.ok) {
+              sheetsData = await sheetsResponse.value.json()
+            }
+            if (tasksResponse.status === "fulfilled" && tasksResponse.value.ok) {
+              tasksData = await tasksResponse.value.json()
+            }
           } catch (error) {
-            console.log("Failed to load from server, trying local files...")
+            console.log("Failed to load from server, trying local storage...")
           }
         }
 
         // Fallback to default data if server data is empty
         if (sheetsData.length === 0) {
-          sheetsData = [
-            {
-              id: 1,
-              title: "Employee Database",
-              url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
-              status: "active",
-              lastUpdated: "2 hours ago",
-              category: "HR",
-              description: "Complete employee information and records",
-              pinned: true,
-            },
-            {
-              id: 2,
-              title: "Project Timeline",
-              url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
-              status: "active",
-              lastUpdated: "1 day ago",
-              category: "Project Management",
-              description: "Project milestones and deadlines tracking",
-              pinned: false,
-            },
-            {
-              id: 3,
-              title: "Budget Analysis",
-              url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
-              status: "pending",
-              lastUpdated: "3 days ago",
-              category: "Finance",
-              description: "Monthly budget analysis and forecasting",
-              pinned: false,
-            },
-          ]
+          const savedSheets = safeLocalStorage.getItem("allSheets")
+          if (savedSheets) {
+            try {
+              sheetsData = JSON.parse(savedSheets)
+            } catch (error) {
+              console.error("Error parsing saved sheets:", error)
+              sheetsData = getDefaultSheets()
+            }
+          } else {
+            sheetsData = getDefaultSheets()
+          }
         }
 
         if (tasksData.length === 0) {
-          tasksData = [
-            {
-              id: 1,
-              title: "Review employee database",
-              description: "Check for missing information and update records",
-              completed: false,
-              priority: "high",
-              dueDate: "2024-01-15",
-              category: "HR",
-              pinned: true,
-            },
-            {
-              id: 2,
-              title: "Update project timeline",
-              description: "Add Q2 milestones and deadlines",
-              completed: true,
-              priority: "medium",
-              dueDate: "2024-01-10",
-              category: "Project Management",
-              pinned: false,
-            },
-            {
-              id: 3,
-              title: "Prepare monthly report",
-              description: "Compile data for monthly performance report",
-              completed: false,
-              priority: "medium",
-              dueDate: "2024-01-20",
-              category: "General",
-              pinned: false,
-            },
-          ]
+          const savedTasks = safeLocalStorage.getItem("allTasks")
+          if (savedTasks) {
+            try {
+              tasksData = JSON.parse(savedTasks)
+            } catch (error) {
+              console.error("Error parsing saved tasks:", error)
+              tasksData = getDefaultTasks()
+            }
+          } else {
+            tasksData = getDefaultTasks()
+          }
         }
 
-        // Ensure all items have pinned property
-        sheetsData = sheetsData.map((sheet) => ({ ...sheet, pinned: sheet.pinned || false }))
-        tasksData = tasksData.map((task) => ({ ...task, pinned: task.pinned || false }))
+        // Ensure all items have required properties
+        sheetsData = sheetsData.map((sheet) => ({
+          ...sheet,
+          pinned: sheet.pinned || false,
+          id: sheet.id || Date.now() + Math.random(),
+        }))
+
+        tasksData = tasksData.map((task) => ({
+          ...task,
+          pinned: task.pinned || false,
+          id: task.id || Date.now() + Math.random(),
+        }))
 
         setSheets(sheetsData)
         setTasks(tasksData)
 
         // Save to localStorage as backup
-        localStorage.setItem("allSheets", JSON.stringify(sheetsData))
-        localStorage.setItem("allTasks", JSON.stringify(tasksData))
+        safeLocalStorage.setItem("allSheets", JSON.stringify(sheetsData))
+        safeLocalStorage.setItem("allTasks", JSON.stringify(tasksData))
       } catch (error) {
         console.error("Error loading data:", error)
 
         // Final fallback to localStorage
-        const savedSheets = localStorage.getItem("allSheets")
-        const savedTasks = localStorage.getItem("allTasks")
+        const savedSheets = safeLocalStorage.getItem("allSheets")
+        const savedTasks = safeLocalStorage.getItem("allTasks")
 
-        if (savedSheets) setSheets(JSON.parse(savedSheets))
-        if (savedTasks) setTasks(JSON.parse(savedTasks))
+        if (savedSheets) {
+          try {
+            setSheets(JSON.parse(savedSheets))
+          } catch (error) {
+            setSheets(getDefaultSheets())
+          }
+        } else {
+          setSheets(getDefaultSheets())
+        }
+
+        if (savedTasks) {
+          try {
+            setTasks(JSON.parse(savedTasks))
+          } catch (error) {
+            setTasks(getDefaultTasks())
+          }
+        } else {
+          setTasks(getDefaultTasks())
+        }
       } finally {
         setLoading(false)
       }
@@ -172,14 +231,85 @@ export const DataProvider = ({ children }) => {
     loadData()
   }, [])
 
-  // Function to update JSON files automatically
+  // Default data functions
+  const getDefaultSheets = () => [
+    {
+      id: 1,
+      title: "Employee Database",
+      url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+      status: "active",
+      lastUpdated: "2 hours ago",
+      category: "HR",
+      description: "Complete employee information and records",
+      pinned: true,
+    },
+    {
+      id: 2,
+      title: "Project Timeline",
+      url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+      status: "active",
+      lastUpdated: "1 day ago",
+      category: "Project Management",
+      description: "Project milestones and deadlines tracking",
+      pinned: false,
+    },
+    {
+      id: 3,
+      title: "Budget Analysis",
+      url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+      status: "pending",
+      lastUpdated: "3 days ago",
+      category: "Finance",
+      description: "Monthly budget analysis and forecasting",
+      pinned: false,
+    },
+  ]
+
+  const getDefaultTasks = () => [
+    {
+      id: 1,
+      title: "Review employee database",
+      description: "Check for missing information and update records",
+      completed: false,
+      priority: "high",
+      dueDate: "2024-01-15",
+      category: "HR",
+      pinned: true,
+    },
+    {
+      id: 2,
+      title: "Update project timeline",
+      description: "Add Q2 milestones and deadlines",
+      completed: true,
+      priority: "medium",
+      dueDate: "2024-01-10",
+      category: "Project Management",
+      pinned: false,
+    },
+    {
+      id: 3,
+      title: "Prepare monthly report",
+      description: "Compile data for monthly performance report",
+      completed: false,
+      priority: "medium",
+      dueDate: "2024-01-20",
+      category: "General",
+      pinned: false,
+    },
+  ]
+
+  // Function to update JSON files with better error handling
   const updateJsonFiles = async (type, data) => {
     try {
       if (serverConnected) {
+        const API_BASE_URL = getApiBaseUrl()
         const endpoint = type === "sheets" ? "/api/update-sheets" : "/api/update-tasks"
         const payload = type === "sheets" ? { sheets: data } : { tasks: data }
 
         console.log(`🔄 Updating ${type} JSON file...`)
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
           method: "POST",
@@ -187,7 +317,10 @@ export const DataProvider = ({ children }) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
+          signal: controller.signal,
         })
+
+        clearTimeout(timeoutId)
 
         if (response.ok) {
           const result = await response.json()
@@ -201,7 +334,11 @@ export const DataProvider = ({ children }) => {
         return false
       }
     } catch (error) {
-      console.error(`❌ Error updating ${type}:`, error)
+      if (error.name === "AbortError") {
+        console.error(`❌ Timeout updating ${type}:`, error)
+      } else {
+        console.error(`❌ Error updating ${type}:`, error)
+      }
       return false
     }
   }
@@ -209,20 +346,20 @@ export const DataProvider = ({ children }) => {
   // Update sheets and automatically save to JSON
   const updateSheetsData = async (newSheets) => {
     setSheets(newSheets)
-    localStorage.setItem("allSheets", JSON.stringify(newSheets))
+    safeLocalStorage.setItem("allSheets", JSON.stringify(newSheets))
     await updateJsonFiles("sheets", newSheets)
   }
 
   // Update tasks and automatically save to JSON
   const updateTasksData = async (newTasks) => {
     setTasks(newTasks)
-    localStorage.setItem("allTasks", JSON.stringify(newTasks))
+    safeLocalStorage.setItem("allTasks", JSON.stringify(newTasks))
     await updateJsonFiles("tasks", newTasks)
   }
 
   const addSheet = async (sheetData) => {
     const newSheet = {
-      id: Date.now(),
+      id: Date.now() + Math.random(),
       pinned: false,
       ...sheetData,
     }
@@ -249,7 +386,7 @@ export const DataProvider = ({ children }) => {
 
   const addTask = async (taskData) => {
     const newTask = {
-      id: Date.now(),
+      id: Date.now() + Math.random(),
       pinned: false,
       ...taskData,
     }
@@ -288,25 +425,21 @@ export const DataProvider = ({ children }) => {
     })
   }
 
-  return (
-    <DataContext.Provider
-      value={{
-        sheets: sortWithPinned(sheets),
-        tasks: sortWithPinned(tasks),
-        loading,
-        serverConnected,
-        addSheet,
-        removeSheet,
-        updateSheet,
-        toggleSheetPin,
-        addTask,
-        toggleTask,
-        removeTask,
-        updateTask,
-        toggleTaskPin,
-      }}
-    >
-      {children}
-    </DataContext.Provider>
-  )
+  const contextValue = {
+    sheets: sortWithPinned(sheets),
+    tasks: sortWithPinned(tasks),
+    loading,
+    serverConnected,
+    addSheet,
+    removeSheet,
+    updateSheet,
+    toggleSheetPin,
+    addTask,
+    toggleTask,
+    removeTask,
+    updateTask,
+    toggleTaskPin,
+  }
+
+  return <DataContext.Provider value={contextValue}>{children}</DataContext.Provider>
 }
