@@ -25,7 +25,7 @@ export const useToast = () => {
 }
 
 // API Base URL - automatically detects environment
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001"
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://anytrip-dashboard-server.vercel.app/"
 
 export const DataProvider = ({ children }) => {
   const [sheets, setSheets] = useState([])
