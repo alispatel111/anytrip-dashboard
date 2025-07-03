@@ -25,14 +25,15 @@ export const useToast = () => {
   return { showToast }
 }
 
-// API Base URL - fixed for Next.js deployment
+// API Base URL - fixed for your deployment
 const getApiBaseUrl = () => {
   if (typeof window === "undefined") {
     // Server-side
-    return process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || "http://localhost:3001"
+    return process.env.NEXT_PUBLIC_API_URL || "https://anytrip-dashboard-server.vercel.app"
   }
-  // Client-side
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+  // Client-side - remove double slash issue
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://anytrip-dashboard-server.vercel.app"
+  return baseUrl.replace(/\/+$/, "") // Remove trailing slashes
 }
 
 export const DataProvider = ({ children }) => {
@@ -41,26 +42,32 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [serverConnected, setServerConnected] = useState(false)
 
-  // Check if server is running with better error handling
+  // Check if server is running with CORS handling
   const checkServerConnection = async () => {
     try {
       const API_BASE_URL = getApiBaseUrl()
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+
+      console.log(`🔍 Checking server connection: ${API_BASE_URL}/api/health`)
 
       const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
+        mode: "cors", // Explicitly set CORS mode
+        credentials: "omit", // Don't send credentials for CORS
         signal: controller.signal,
       })
 
       clearTimeout(timeoutId)
 
       if (response.ok) {
+        const data = await response.json()
         setServerConnected(true)
-        console.log("✅ Connected to server")
+        console.log("✅ Connected to server:", data)
         return true
       } else {
         throw new Error(`Server responded with status: ${response.status}`)
@@ -68,6 +75,8 @@ export const DataProvider = ({ children }) => {
     } catch (error) {
       if (error.name === "AbortError") {
         console.log("⚠️ Server connection timeout, using localStorage fallback")
+      } else if (error.message.includes("CORS")) {
+        console.log("⚠️ CORS error - server needs CORS configuration, using localStorage fallback")
       } else {
         console.log("⚠️ Server not available, using localStorage fallback:", error.message)
       }
@@ -113,54 +122,64 @@ export const DataProvider = ({ children }) => {
         let tasksData = []
 
         if (isServerConnected) {
-          // Load from server API with timeout
+          // Load from server API with proper CORS handling
           try {
             const API_BASE_URL = getApiBaseUrl()
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
+            console.log(`📡 Fetching data from: ${API_BASE_URL}`)
+
+            const fetchOptions = {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              mode: "cors",
+              credentials: "omit",
+              signal: controller.signal,
+            }
+
             const [sheetsResponse, tasksResponse] = await Promise.allSettled([
-              fetch(`${API_BASE_URL}/api/sheets`, {
-                method: "GET",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                signal: controller.signal,
-              }),
-              fetch(`${API_BASE_URL}/api/tasks`, {
-                method: "GET",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                signal: controller.signal,
-              }),
+              fetch(`${API_BASE_URL}/api/sheets`, fetchOptions),
+              fetch(`${API_BASE_URL}/api/tasks`, fetchOptions),
             ])
 
             clearTimeout(timeoutId)
 
             if (sheetsResponse.status === "fulfilled" && sheetsResponse.value.ok) {
               sheetsData = await sheetsResponse.value.json()
+              console.log("✅ Sheets data loaded from server")
+            } else {
+              console.log("⚠️ Failed to load sheets from server")
             }
+
             if (tasksResponse.status === "fulfilled" && tasksResponse.value.ok) {
               tasksData = await tasksResponse.value.json()
+              console.log("✅ Tasks data loaded from server")
+            } else {
+              console.log("⚠️ Failed to load tasks from server")
             }
           } catch (error) {
-            console.log("Failed to load from server, trying local storage...")
+            console.log("Failed to load from server, trying local storage...", error)
           }
         }
 
-        // Fallback to default data if server data is empty
+        // Fallback to localStorage or default data
         if (sheetsData.length === 0) {
           const savedSheets = safeLocalStorage.getItem("allSheets")
           if (savedSheets) {
             try {
               sheetsData = JSON.parse(savedSheets)
+              console.log("📦 Loaded sheets from localStorage")
             } catch (error) {
               console.error("Error parsing saved sheets:", error)
               sheetsData = getDefaultSheets()
             }
           } else {
             sheetsData = getDefaultSheets()
+            console.log("🔧 Using default sheets data")
           }
         }
 
@@ -169,12 +188,14 @@ export const DataProvider = ({ children }) => {
           if (savedTasks) {
             try {
               tasksData = JSON.parse(savedTasks)
+              console.log("📦 Loaded tasks from localStorage")
             } catch (error) {
               console.error("Error parsing saved tasks:", error)
               tasksData = getDefaultTasks()
             }
           } else {
             tasksData = getDefaultTasks()
+            console.log("🔧 Using default tasks data")
           }
         }
 
@@ -197,6 +218,8 @@ export const DataProvider = ({ children }) => {
         // Save to localStorage as backup
         safeLocalStorage.setItem("allSheets", JSON.stringify(sheetsData))
         safeLocalStorage.setItem("allTasks", JSON.stringify(tasksData))
+
+        console.log(`📊 Final data loaded - Sheets: ${sheetsData.length}, Tasks: ${tasksData.length}`)
       } catch (error) {
         console.error("Error loading data:", error)
 
@@ -298,15 +321,15 @@ export const DataProvider = ({ children }) => {
     },
   ]
 
-  // Function to update JSON files with better error handling
-  const updateJsonFiles = async (type, data) => {
+  // Function to update server data with CORS handling
+  const updateServerData = async (type, data) => {
     try {
       if (serverConnected) {
         const API_BASE_URL = getApiBaseUrl()
         const endpoint = type === "sheets" ? "/api/update-sheets" : "/api/update-tasks"
         const payload = type === "sheets" ? { sheets: data } : { tasks: data }
 
-        console.log(`🔄 Updating ${type} JSON file...`)
+        console.log(`🔄 Updating ${type} on server...`)
 
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
@@ -315,7 +338,10 @@ export const DataProvider = ({ children }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Accept: "application/json",
           },
+          mode: "cors",
+          credentials: "omit",
           body: JSON.stringify(payload),
           signal: controller.signal,
         })
@@ -324,7 +350,7 @@ export const DataProvider = ({ children }) => {
 
         if (response.ok) {
           const result = await response.json()
-          console.log(`✅ ${type} JSON file updated successfully:`, result)
+          console.log(`✅ ${type} updated successfully on server:`, result)
           return true
         } else {
           throw new Error(`Server responded with status: ${response.status}`)
@@ -337,24 +363,24 @@ export const DataProvider = ({ children }) => {
       if (error.name === "AbortError") {
         console.error(`❌ Timeout updating ${type}:`, error)
       } else {
-        console.error(`❌ Error updating ${type}:`, error)
+        console.error(`❌ Error updating ${type} on server:`, error)
       }
       return false
     }
   }
 
-  // Update sheets and automatically save to JSON
+  // Update sheets and automatically save
   const updateSheetsData = async (newSheets) => {
     setSheets(newSheets)
     safeLocalStorage.setItem("allSheets", JSON.stringify(newSheets))
-    await updateJsonFiles("sheets", newSheets)
+    await updateServerData("sheets", newSheets)
   }
 
-  // Update tasks and automatically save to JSON
+  // Update tasks and automatically save
   const updateTasksData = async (newTasks) => {
     setTasks(newTasks)
     safeLocalStorage.setItem("allTasks", JSON.stringify(newTasks))
-    await updateJsonFiles("tasks", newTasks)
+    await updateServerData("tasks", newTasks)
   }
 
   const addSheet = async (sheetData) => {
