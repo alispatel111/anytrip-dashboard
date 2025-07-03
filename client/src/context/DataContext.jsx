@@ -33,10 +33,55 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [serverConnected, setServerConnected] = useState(false)
 
+  // Add fallback data at the top of DataProvider
+  const fallbackSheets = [
+    {
+      id: 1,
+      title: "Employee Database",
+      url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+      status: "pending",
+      lastUpdated: "Just now",
+      category: "HR",
+      description: "Complete employee information and records",
+    },
+    {
+      id: 2,
+      title: "Project Timeline",
+      url: "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+      status: "active",
+      lastUpdated: "1 day ago",
+      category: "Project Management",
+      description: "Project milestones and deadlines tracking",
+    },
+  ]
+
+  const fallbackTasks = [
+    {
+      id: 1,
+      title: "Review employee database",
+      description: "Check for missing information and update records",
+      completed: false,
+      priority: "high",
+      dueDate: "2024-01-15",
+      category: "HR",
+    },
+    {
+      id: 2,
+      title: "Update project timeline",
+      description: "Add Q2 milestones and deadlines",
+      completed: true,
+      priority: "medium",
+      dueDate: "2024-01-10",
+      category: "Project Management",
+    },
+  ]
+
   // Check if server is running
   const checkServerConnection = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/health`)
+      // Remove any trailing slash and ensure proper URL formation
+      const baseUrl = API_BASE_URL.replace(/\/$/, "")
+      const response = await fetch(`${baseUrl}/api/health`)
       if (response.ok) {
         setServerConnected(true)
         console.log("✅ Connected to server")
@@ -64,8 +109,9 @@ export const DataProvider = ({ children }) => {
         if (isServerConnected) {
           // Load from server API
           try {
-            const sheetsResponse = await fetch(`${API_BASE_URL}/api/sheets`)
-            const tasksResponse = await fetch(`${API_BASE_URL}/api/tasks`)
+            const baseUrl = API_BASE_URL.replace(/\/$/, "")
+            const sheetsResponse = await fetch(`${baseUrl}/api/sheets`)
+            const tasksResponse = await fetch(`${baseUrl}/api/tasks`)
 
             if (sheetsResponse.ok) sheetsData = await sheetsResponse.json()
             if (tasksResponse.ok) tasksData = await tasksResponse.json()
@@ -102,12 +148,23 @@ export const DataProvider = ({ children }) => {
       } catch (error) {
         console.error("Error loading data:", error)
 
-        // Final fallback to localStorage
+        // Final fallback to localStorage or default data
         const savedSheets = localStorage.getItem("allSheets")
         const savedTasks = localStorage.getItem("allTasks")
 
-        if (savedSheets) setSheets(JSON.parse(savedSheets))
-        if (savedTasks) setTasks(JSON.parse(savedTasks))
+        if (savedSheets) {
+          setSheets(JSON.parse(savedSheets))
+        } else {
+          setSheets(fallbackSheets)
+          localStorage.setItem("allSheets", JSON.stringify(fallbackSheets))
+        }
+
+        if (savedTasks) {
+          setTasks(JSON.parse(savedTasks))
+        } else {
+          setTasks(fallbackTasks)
+          localStorage.setItem("allTasks", JSON.stringify(fallbackTasks))
+        }
       } finally {
         setLoading(false)
       }
