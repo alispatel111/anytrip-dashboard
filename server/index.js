@@ -16,10 +16,13 @@ app.use(
     origin: [
       "http://localhost:3000",
       "http://localhost:3001",
-      "https://anytrip-erp.vercel.app/", // Replace with your client URL
+      "https://anytrip-erp.vercel.app", // Your actual client URL
+      "https://anytrip-dashboard-server.vercel.app", // Your server URL
       /\.vercel\.app$/,
     ],
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 )
 
