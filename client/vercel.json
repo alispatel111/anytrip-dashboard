@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://your-server-deployment.vercel.app/api/$1"
+      "destination": "https://anytrip-dashboard-server.vercel.app/api/$1"
     },
     {
       "source": "/(.*)",
@@ -14,6 +14,6 @@
     }
   ],
   "env": {
-    "VITE_API_URL": "https://your-server-deployment.vercel.app"
+    "VITE_API_URL": "https://anytrip-dashboard-server.vercel.app"
   }
 }
