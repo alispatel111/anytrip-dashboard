@@ -1,12 +1,15 @@
 "use client"
 
 import { Link, useLocation } from "react-router-dom"
-import { Home, FileSpreadsheet, CheckSquare, Upload, Download, Settings, X } from "lucide-react"
+import { Home, FileSpreadsheet, CheckSquare, Settings, X } from "lucide-react"
 import { useData } from "../context/DataContext"
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation()
   const { sheets, tasks } = useData()
+
+  const pinnedSheets = sheets.filter((sheet) => sheet.pinned).length
+  const pinnedTasks = tasks.filter((task) => task.pinned).length
 
   const menuItems = [
     {
@@ -20,24 +23,14 @@ const Sidebar = ({ isOpen, onClose }) => {
       label: "Google Sheets",
       path: "/google-sheets",
       count: sheets.length,
+      pinnedCount: pinnedSheets,
     },
     {
       icon: CheckSquare,
       label: "Tasks",
       path: "/tasks",
       count: tasks.length,
-    },
-    {
-      icon: Upload,
-      label: "Upload Files",
-      path: "/upload-files",
-      count: null,
-    },
-    {
-      icon: Download,
-      label: "Downloads",
-      path: "/downloads",
-      count: null,
+      pinnedCount: pinnedTasks,
     },
     {
       icon: Settings,
@@ -75,7 +68,14 @@ const Sidebar = ({ isOpen, onClose }) => {
             >
               <item.icon size={20} />
               <span>{item.label}</span>
-              {item.count !== null && <span className="count-badge">{item.count}</span>}
+              <div className="nav-badges">
+                {item.pinnedCount > 0 && (
+                  <span className="pinned-badge" title="Pinned items">
+                    📌 {item.pinnedCount}
+                  </span>
+                )}
+                {item.count !== null && <span className="count-badge">{item.count}</span>}
+              </div>
             </Link>
           ))}
         </nav>
