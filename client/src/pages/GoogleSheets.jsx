@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { ExternalLink, Edit3, Plus, Trash2, Search } from "lucide-react"
+import { ExternalLink, Edit3, Plus, Trash2, Search, Pin, PinOff } from "lucide-react"
 import { useData } from "../context/DataContext"
 import { useToast } from "../context/DataContext"
 import { FileSpreadsheet } from "lucide-react"
 
 const GoogleSheets = () => {
-  const { sheets, addSheet, removeSheet, updateSheet, loading } = useData()
+  const { sheets, addSheet, removeSheet, updateSheet, toggleSheetPin, loading } = useData()
   const { showToast } = useToast()
   const [showAddForm, setShowAddForm] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
@@ -92,6 +92,12 @@ const GoogleSheets = () => {
     setDeleteSheetId(null)
   }
 
+  const handleTogglePin = (id) => {
+    const sheet = sheets.find((s) => s.id === id)
+    toggleSheetPin(id)
+    showToast(sheet.pinned ? "Sheet unpinned" : "Sheet pinned to top", "info")
+  }
+
   const getStatusColor = (status) => {
     switch (status) {
       case "active":
@@ -109,7 +115,8 @@ const GoogleSheets = () => {
   const filteredSheets = sheets.filter((sheet) => {
     const matchesSearch =
       sheet.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sheet.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      sheet.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sheet.category?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = filterStatus === "all" || sheet.status === filterStatus
     const matchesCategory = filterCategory === "all" || sheet.category === filterCategory
 
@@ -118,6 +125,10 @@ const GoogleSheets = () => {
 
   // Get unique categories for filter
   const categories = [...new Set(sheets.map((sheet) => sheet.category))].filter(Boolean)
+
+  // Separate pinned and unpinned sheets
+  const pinnedSheets = filteredSheets.filter((sheet) => sheet.pinned)
+  const unpinnedSheets = filteredSheets.filter((sheet) => !sheet.pinned)
 
   if (loading) {
     return (
@@ -148,7 +159,7 @@ const GoogleSheets = () => {
           <Search size={20} />
           <input
             type="text"
-            placeholder="Search sheets..."
+            placeholder="Search sheets by title, description, or category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -303,34 +314,107 @@ const GoogleSheets = () => {
         </div>
       )}
 
-      <div className="sheets-grid">
-        {filteredSheets.map((sheet) => (
-          <div key={sheet.id} className="sheet-card">
-            <div className="sheet-header">
-              <div className="sheet-title-section">
-                <h3>{sheet.title}</h3>
-                {sheet.category && <span className="category-tag">{sheet.category}</span>}
-              </div>
-              <div className="sheet-actions">
-                <button className="action-btn" onClick={() => window.open(sheet.url, "_blank")} title="Open in new tab">
-                  <ExternalLink size={16} />
-                </button>
-                <button className="action-btn" onClick={() => handleEdit(sheet)} title="Edit sheet">
-                  <Edit3 size={16} />
-                </button>
-                <button className="action-btn delete" onClick={() => handleDeleteClick(sheet.id)} title="Delete sheet">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-            {sheet.description && <p className="sheet-description">{sheet.description}</p>}
-            <div className="sheet-meta">
-              <span className={`status-badge ${getStatusColor(sheet.status)}`}>{sheet.status}</span>
-              <span className="last-updated">Updated {sheet.lastUpdated}</span>
-            </div>
+      {/* Pinned Sheets Section */}
+      {pinnedSheets.length > 0 && (
+        <div className="pinned-section">
+          <div className="section-header">
+            <h2>📌 Pinned Sheets ({pinnedSheets.length})</h2>
           </div>
-        ))}
-      </div>
+          <div className="sheets-grid">
+            {pinnedSheets.map((sheet) => (
+              <div key={sheet.id} className="sheet-card pinned">
+                <div className="sheet-header">
+                  <div className="sheet-title-section">
+                    <h3>{sheet.title}</h3>
+                    {sheet.category && <span className="category-tag">{sheet.category}</span>}
+                  </div>
+                  <div className="sheet-actions">
+                    <button
+                      className="action-btn pin-btn active"
+                      onClick={() => handleTogglePin(sheet.id)}
+                      title="Unpin from top"
+                    >
+                      <Pin size={16} />
+                    </button>
+                    <button
+                      className="action-btn"
+                      onClick={() => window.open(sheet.url, "_blank")}
+                      title="Open in new tab"
+                    >
+                      <ExternalLink size={16} />
+                    </button>
+                    <button className="action-btn" onClick={() => handleEdit(sheet)} title="Edit sheet">
+                      <Edit3 size={16} />
+                    </button>
+                    <button
+                      className="action-btn delete"
+                      onClick={() => handleDeleteClick(sheet.id)}
+                      title="Delete sheet"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                {sheet.description && <p className="sheet-description">{sheet.description}</p>}
+                <div className="sheet-meta">
+                  <span className={`status-badge ${getStatusColor(sheet.status)}`}>{sheet.status}</span>
+                  <span className="last-updated">Updated {sheet.lastUpdated}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Regular Sheets Section */}
+      {unpinnedSheets.length > 0 && (
+        <div className="regular-section">
+          {pinnedSheets.length > 0 && (
+            <div className="section-header">
+              <h2>All Sheets ({unpinnedSheets.length})</h2>
+            </div>
+          )}
+          <div className="sheets-grid">
+            {unpinnedSheets.map((sheet) => (
+              <div key={sheet.id} className="sheet-card">
+                <div className="sheet-header">
+                  <div className="sheet-title-section">
+                    <h3>{sheet.title}</h3>
+                    {sheet.category && <span className="category-tag">{sheet.category}</span>}
+                  </div>
+                  <div className="sheet-actions">
+                    <button className="action-btn pin-btn" onClick={() => handleTogglePin(sheet.id)} title="Pin to top">
+                      <PinOff size={16} />
+                    </button>
+                    <button
+                      className="action-btn"
+                      onClick={() => window.open(sheet.url, "_blank")}
+                      title="Open in new tab"
+                    >
+                      <ExternalLink size={16} />
+                    </button>
+                    <button className="action-btn" onClick={() => handleEdit(sheet)} title="Edit sheet">
+                      <Edit3 size={16} />
+                    </button>
+                    <button
+                      className="action-btn delete"
+                      onClick={() => handleDeleteClick(sheet.id)}
+                      title="Delete sheet"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                {sheet.description && <p className="sheet-description">{sheet.description}</p>}
+                <div className="sheet-meta">
+                  <span className={`status-badge ${getStatusColor(sheet.status)}`}>{sheet.status}</span>
+                  <span className="last-updated">Updated {sheet.lastUpdated}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {filteredSheets.length === 0 && sheets.length > 0 && (
         <div className="empty-state">
