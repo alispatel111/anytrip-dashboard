@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { useTheme } from "../context/ThemeContext"
-import { Menu, Sun, Moon, User } from "lucide-react"
+import { useData } from "../context/DataContext"
+import { Menu, Sun, Moon, User, Wifi, WifiOff } from "lucide-react"
 
 const Header = ({ onMenuClick }) => {
   const { theme, toggleTheme } = useTheme()
+  const { serverConnected } = useData()
   const [employeeName, setEmployeeName] = useState("")
   const [showNameInput, setShowNameInput] = useState(false)
 
@@ -46,6 +48,14 @@ const Header = ({ onMenuClick }) => {
       </div>
 
       <div className="header-right">
+        {/* Server Status Indicator */}
+        <div
+          className={`server-status ${serverConnected ? "connected" : "disconnected"}`}
+          title={serverConnected ? "Server Connected" : "Server Disconnected - Using Local Storage"}
+        >
+          {serverConnected ? <Wifi size={16} /> : <WifiOff size={16} />}
+        </div>
+
         <button className="theme-toggle" onClick={toggleTheme}>
           {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
         </button>
