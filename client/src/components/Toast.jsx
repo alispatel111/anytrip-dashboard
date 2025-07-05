@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Check, Info, AlertTriangle } from "lucide-react"
+import { X, Check, Info, AlertTriangle, Wifi, WifiOff } from "lucide-react"
 
 let toastId = 0
 
@@ -20,8 +20,21 @@ const Toast = () => {
       }, duration)
     }
 
+    // Listen for custom toast events
     window.addEventListener("show-toast", handleToast)
-    return () => window.removeEventListener("show-toast", handleToast)
+
+    // Listen for server connection status
+    window.addEventListener("server-status", (event) => {
+      const { connected } = event.detail
+      const message = connected ? "Server connected" : "Server disconnected - using local storage"
+      const type = connected ? "success" : "warning"
+      handleToast({ detail: { message, type, duration: 2000 } })
+    })
+
+    return () => {
+      window.removeEventListener("show-toast", handleToast)
+      window.removeEventListener("server-status", handleToast)
+    }
   }, [])
 
   const removeToast = (id) => {
@@ -36,6 +49,10 @@ const Toast = () => {
         return <AlertTriangle size={16} />
       case "warning":
         return <AlertTriangle size={16} />
+      case "server-connected":
+        return <Wifi size={16} />
+      case "server-disconnected":
+        return <WifiOff size={16} />
       default:
         return <Info size={16} />
     }
