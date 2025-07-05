@@ -25,13 +25,8 @@ export const useToast = () => {
   return { showToast }
 }
 
-// API Base URL - improved configuration
-const getApiBaseUrl = () => {
-  if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL || "https://anytrip-dashboard-server.vercel.app"
-  }
-  return process.env.VITE_API_URL || "https://anytrip-dashboard-server.vercel.app"
-}
+// Simple API configuration
+const API_BASE_URL = "https://anytrip-dashboard-server.vercel.app"
 
 export const DataProvider = ({ children }) => {
   const [sheets, setSheets] = useState([])
@@ -39,41 +34,9 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [serverConnected, setServerConnected] = useState(false)
 
-  // Improved server connection check
-  const checkServerConnection = async () => {
-    try {
-      const API_BASE_URL = getApiBaseUrl()
-      console.log(`🔍 Checking server connection: ${API_BASE_URL}`)
-
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000)
-
-      const response = await fetch(`${API_BASE_URL}/api/health`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        mode: "cors",
-        credentials: "omit",
-        signal: controller.signal,
-      })
-
-      clearTimeout(timeoutId)
-
-      if (response.ok) {
-        const data = await response.json()
-        setServerConnected(true)
-        console.log("✅ Server connected:", data)
-        return true
-      } else {
-        throw new Error(`Server responded with status: ${response.status}`)
-      }
-    } catch (error) {
-      console.log("⚠️ Server connection failed:", error.message)
-      setServerConnected(false)
-      return false
-    }
+  // Debug logging function
+  const debugLog = (message, data = null) => {
+    console.log(`🔍 [DataContext] ${message}`, data || "")
   }
 
   // Safe localStorage operations
@@ -81,11 +44,13 @@ export const DataProvider = ({ children }) => {
     getItem: (key) => {
       try {
         if (typeof window !== "undefined") {
-          return localStorage.getItem(key)
+          const item = localStorage.getItem(key)
+          debugLog(`📦 Retrieved from localStorage [${key}]:`, item ? "Found" : "Not found")
+          return item
         }
         return null
       } catch (error) {
-        console.error("Error reading from localStorage:", error)
+        debugLog(`❌ Error reading localStorage [${key}]:`, error.message)
         return null
       }
     },
@@ -93,160 +58,15 @@ export const DataProvider = ({ children }) => {
       try {
         if (typeof window !== "undefined") {
           localStorage.setItem(key, value)
+          debugLog(`💾 Saved to localStorage [${key}]:`, "Success")
         }
       } catch (error) {
-        console.error("Error writing to localStorage:", error)
+        debugLog(`❌ Error writing localStorage [${key}]:`, error.message)
       }
     },
   }
 
-  // Improved data loading with better error handling
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        console.log("📡 Starting data load...")
-
-        // Check server connection
-        const isServerConnected = await checkServerConnection()
-
-        let sheetsData = []
-        let tasksData = []
-
-        if (isServerConnected) {
-          try {
-            const API_BASE_URL = getApiBaseUrl()
-            console.log(`📡 Fetching data from server: ${API_BASE_URL}`)
-
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), 15000)
-
-            const fetchOptions = {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-              mode: "cors",
-              credentials: "omit",
-              signal: controller.signal,
-            }
-
-            // Fetch both sheets and tasks
-            const [sheetsResponse, tasksResponse] = await Promise.allSettled([
-              fetch(`${API_BASE_URL}/api/sheets`, fetchOptions),
-              fetch(`${API_BASE_URL}/api/tasks`, fetchOptions),
-            ])
-
-            clearTimeout(timeoutId)
-
-            // Process sheets response
-            if (sheetsResponse.status === "fulfilled" && sheetsResponse.value.ok) {
-              const sheetsResult = await sheetsResponse.value.json()
-              if (Array.isArray(sheetsResult) && sheetsResult.length > 0) {
-                sheetsData = sheetsResult
-                console.log("✅ Sheets loaded from server:", sheetsData.length)
-              }
-            }
-
-            // Process tasks response
-            if (tasksResponse.status === "fulfilled" && tasksResponse.value.ok) {
-              const tasksResult = await tasksResponse.value.json()
-              if (Array.isArray(tasksResult) && tasksResult.length > 0) {
-                tasksData = tasksResult
-                console.log("✅ Tasks loaded from server:", tasksData.length)
-              }
-            }
-          } catch (error) {
-            console.log("❌ Server fetch failed:", error.message)
-          }
-        }
-
-        // Fallback to localStorage if server data is empty
-        if (sheetsData.length === 0) {
-          const savedSheets = safeLocalStorage.getItem("allSheets")
-          if (savedSheets) {
-            try {
-              const parsedSheets = JSON.parse(savedSheets)
-              if (Array.isArray(parsedSheets) && parsedSheets.length > 0) {
-                sheetsData = parsedSheets
-                console.log("📦 Loaded sheets from localStorage:", sheetsData.length)
-              }
-            } catch (error) {
-              console.error("Error parsing saved sheets:", error)
-            }
-          }
-        }
-
-        if (tasksData.length === 0) {
-          const savedTasks = safeLocalStorage.getItem("allTasks")
-          if (savedTasks) {
-            try {
-              const parsedTasks = JSON.parse(savedTasks)
-              if (Array.isArray(parsedTasks) && parsedTasks.length > 0) {
-                tasksData = parsedTasks
-                console.log("📦 Loaded tasks from localStorage:", tasksData.length)
-              }
-            } catch (error) {
-              console.error("Error parsing saved tasks:", error)
-            }
-          }
-        }
-
-        // Use default data if nothing is found
-        if (sheetsData.length === 0) {
-          sheetsData = getDefaultSheets()
-          console.log("🔧 Using default sheets data")
-        }
-
-        if (tasksData.length === 0) {
-          tasksData = getDefaultTasks()
-          console.log("🔧 Using default tasks data")
-        }
-
-        // Ensure all items have required properties
-        sheetsData = sheetsData.map((sheet) => ({
-          ...sheet,
-          pinned: sheet.pinned || false,
-          id: sheet.id || Date.now() + Math.random(),
-        }))
-
-        tasksData = tasksData.map((task) => ({
-          ...task,
-          pinned: task.pinned || false,
-          id: task.id || Date.now() + Math.random(),
-        }))
-
-        // Set the data
-        setSheets(sheetsData)
-        setTasks(tasksData)
-
-        // Save to localStorage as backup
-        safeLocalStorage.setItem("allSheets", JSON.stringify(sheetsData))
-        safeLocalStorage.setItem("allTasks", JSON.stringify(tasksData))
-
-        // If server is connected, sync the data to server
-        if (isServerConnected) {
-          await syncToServer("sheets", sheetsData)
-          await syncToServer("tasks", tasksData)
-        }
-
-        console.log(`📊 Data loaded successfully - Sheets: ${sheetsData.length}, Tasks: ${tasksData.length}`)
-      } catch (error) {
-        console.error("❌ Error loading data:", error)
-
-        // Final fallback
-        setSheets(getDefaultSheets())
-        setTasks(getDefaultTasks())
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [])
-
-  // Default data functions
+  // Default data
   const getDefaultSheets = () => [
     {
       id: 1,
@@ -313,102 +133,299 @@ export const DataProvider = ({ children }) => {
     },
   ]
 
-  // Improved server sync function
-  const syncToServer = async (type, data) => {
+  // API functions with detailed logging
+  const apiCall = async (endpoint, options = {}) => {
     try {
-      if (!serverConnected) {
-        console.log(`⚠️ Server not connected, skipping ${type} sync`)
-        return false
-      }
+      debugLog(`📡 API Call: ${endpoint}`, options.method || "GET")
 
-      const API_BASE_URL = getApiBaseUrl()
-      const endpoint = type === "sheets" ? "/api/update-sheets" : "/api/update-tasks"
-      const payload = type === "sheets" ? { sheets: data } : { tasks: data }
-
-      console.log(`🔄 Syncing ${type} to server...`)
-
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000)
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
+      const url = `${API_BASE_URL}${endpoint}`
+      const defaultOptions = {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
         mode: "cors",
         credentials: "omit",
-        body: JSON.stringify(payload),
-        signal: controller.signal,
+      }
+
+      const response = await fetch(url, { ...defaultOptions, ...options })
+
+      debugLog(`📡 API Response [${endpoint}]:`, {
+        status: response.status,
+        ok: response.ok,
       })
 
-      clearTimeout(timeoutId)
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log(`✅ ${type} synced successfully:`, result)
-        return true
-      } else {
-        throw new Error(`Server responded with status: ${response.status}`)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
+
+      const data = await response.json()
+      debugLog(`📡 API Data [${endpoint}]:`, data)
+      return data
     } catch (error) {
-      console.error(`❌ Error syncing ${type}:`, error.message)
+      debugLog(`❌ API Error [${endpoint}]:`, error.message)
+      throw error
+    }
+  }
+
+  // Check server health
+  const checkServerHealth = async () => {
+    try {
+      debugLog("🏥 Checking server health...")
+      const health = await apiCall("/api/health")
+      setServerConnected(true)
+      debugLog("✅ Server is healthy:", health)
+      return true
+    } catch (error) {
+      setServerConnected(false)
+      debugLog("❌ Server health check failed:", error.message)
       return false
     }
   }
 
-  // Update functions with improved error handling
-  const updateSheetsData = async (newSheets) => {
-    setSheets(newSheets)
-    safeLocalStorage.setItem("allSheets", JSON.stringify(newSheets))
+  // Load data from server
+  const loadFromServer = async () => {
+    try {
+      debugLog("📥 Loading data from server...")
 
-    // Try to sync to server
-    if (serverConnected) {
-      const synced = await syncToServer("sheets", newSheets)
-      if (!synced) {
-        console.log("⚠️ Failed to sync sheets to server, data saved locally")
+      const [sheetsResult, tasksResult] = await Promise.allSettled([apiCall("/api/sheets"), apiCall("/api/tasks")])
+
+      let serverSheets = []
+      let serverTasks = []
+
+      if (sheetsResult.status === "fulfilled") {
+        serverSheets = Array.isArray(sheetsResult.value) ? sheetsResult.value : []
+        debugLog("✅ Sheets loaded from server:", serverSheets.length)
+      } else {
+        debugLog("❌ Failed to load sheets from server:", sheetsResult.reason?.message)
       }
+
+      if (tasksResult.status === "fulfilled") {
+        serverTasks = Array.isArray(tasksResult.value) ? tasksResult.value : []
+        debugLog("✅ Tasks loaded from server:", serverTasks.length)
+      } else {
+        debugLog("❌ Failed to load tasks from server:", tasksResult.reason?.message)
+      }
+
+      return { sheets: serverSheets, tasks: serverTasks }
+    } catch (error) {
+      debugLog("❌ Error loading from server:", error.message)
+      return { sheets: [], tasks: [] }
     }
   }
 
-  const updateTasksData = async (newTasks) => {
-    setTasks(newTasks)
-    safeLocalStorage.setItem("allTasks", JSON.stringify(newTasks))
-
-    // Try to sync to server
-    if (serverConnected) {
-      const synced = await syncToServer("tasks", newTasks)
-      if (!synced) {
-        console.log("⚠️ Failed to sync tasks to server, data saved locally")
+  // Save data to server
+  const saveToServer = async (type, data) => {
+    try {
+      if (!serverConnected) {
+        debugLog(`⚠️ Server not connected, skipping ${type} save`)
+        return false
       }
+
+      debugLog(`💾 Saving ${type} to server:`, data.length)
+
+      const endpoint = type === "sheets" ? "/api/update-sheets" : "/api/update-tasks"
+      const payload = type === "sheets" ? { sheets: data } : { tasks: data }
+
+      const result = await apiCall(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      })
+
+      debugLog(`✅ ${type} saved to server:`, result)
+      return true
+    } catch (error) {
+      debugLog(`❌ Error saving ${type} to server:`, error.message)
+      return false
     }
   }
 
+  // Load data from localStorage
+  const loadFromLocalStorage = () => {
+    debugLog("📦 Loading data from localStorage...")
+
+    let localSheets = []
+    let localTasks = []
+
+    try {
+      const savedSheets = safeLocalStorage.getItem("dashboard_sheets")
+      if (savedSheets) {
+        localSheets = JSON.parse(savedSheets)
+        debugLog("✅ Sheets loaded from localStorage:", localSheets.length)
+      }
+    } catch (error) {
+      debugLog("❌ Error parsing sheets from localStorage:", error.message)
+    }
+
+    try {
+      const savedTasks = safeLocalStorage.getItem("dashboard_tasks")
+      if (savedTasks) {
+        localTasks = JSON.parse(savedTasks)
+        debugLog("✅ Tasks loaded from localStorage:", localTasks.length)
+      }
+    } catch (error) {
+      debugLog("❌ Error parsing tasks from localStorage:", error.message)
+    }
+
+    return { sheets: localSheets, tasks: localTasks }
+  }
+
+  // Save data to localStorage
+  const saveToLocalStorage = (type, data) => {
+    try {
+      const key = type === "sheets" ? "dashboard_sheets" : "dashboard_tasks"
+      safeLocalStorage.setItem(key, JSON.stringify(data))
+      debugLog(`💾 ${type} saved to localStorage:`, data.length)
+    } catch (error) {
+      debugLog(`❌ Error saving ${type} to localStorage:`, error.message)
+    }
+  }
+
+  // Main data loading function
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        debugLog("🚀 Starting data load process...")
+
+        // Step 1: Check server health
+        const isServerHealthy = await checkServerHealth()
+
+        // Step 2: Try to load from server if healthy
+        let finalSheets = []
+        let finalTasks = []
+
+        if (isServerHealthy) {
+          const serverData = await loadFromServer()
+          finalSheets = serverData.sheets
+          finalTasks = serverData.tasks
+        }
+
+        // Step 3: Fallback to localStorage if server data is empty
+        if (finalSheets.length === 0 || finalTasks.length === 0) {
+          debugLog("📦 Falling back to localStorage...")
+          const localData = loadFromLocalStorage()
+
+          if (finalSheets.length === 0) {
+            finalSheets = localData.sheets
+          }
+          if (finalTasks.length === 0) {
+            finalTasks = localData.tasks
+          }
+        }
+
+        // Step 4: Use default data if still empty
+        if (finalSheets.length === 0) {
+          debugLog("🔧 Using default sheets data")
+          finalSheets = getDefaultSheets()
+        }
+        if (finalTasks.length === 0) {
+          debugLog("🔧 Using default tasks data")
+          finalTasks = getDefaultTasks()
+        }
+
+        // Step 5: Ensure data integrity
+        finalSheets = finalSheets.map((sheet) => ({
+          ...sheet,
+          id: sheet.id || Date.now() + Math.random(),
+          pinned: Boolean(sheet.pinned),
+        }))
+
+        finalTasks = finalTasks.map((task) => ({
+          ...task,
+          id: task.id || Date.now() + Math.random(),
+          pinned: Boolean(task.pinned),
+        }))
+
+        // Step 6: Set the data
+        setSheets(finalSheets)
+        setTasks(finalTasks)
+
+        // Step 7: Save to localStorage as backup
+        saveToLocalStorage("sheets", finalSheets)
+        saveToLocalStorage("tasks", finalTasks)
+
+        // Step 8: Sync to server if connected and data came from localStorage/default
+        if (isServerHealthy && (finalSheets.length > 0 || finalTasks.length > 0)) {
+          debugLog("🔄 Syncing data to server...")
+          await saveToServer("sheets", finalSheets)
+          await saveToServer("tasks", finalTasks)
+        }
+
+        debugLog("✅ Data load complete:", {
+          sheets: finalSheets.length,
+          tasks: finalTasks.length,
+          serverConnected: isServerHealthy,
+        })
+      } catch (error) {
+        debugLog("❌ Critical error in data loading:", error.message)
+
+        // Emergency fallback
+        const emergency = loadFromLocalStorage()
+        setSheets(emergency.sheets.length > 0 ? emergency.sheets : getDefaultSheets())
+        setTasks(emergency.tasks.length > 0 ? emergency.tasks : getDefaultTasks())
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  // Update functions with proper sync
+  const updateData = async (type, newData) => {
+    debugLog(`🔄 Updating ${type}:`, newData.length)
+
+    // Update state immediately
+    if (type === "sheets") {
+      setSheets(newData)
+    } else {
+      setTasks(newData)
+    }
+
+    // Save to localStorage immediately
+    saveToLocalStorage(type, newData)
+
+    // Try to sync to server
+    if (serverConnected) {
+      const synced = await saveToServer(type, newData)
+      if (synced) {
+        debugLog(`✅ ${type} synced to server successfully`)
+      } else {
+        debugLog(`⚠️ ${type} sync to server failed, saved locally only`)
+      }
+    } else {
+      debugLog(`⚠️ Server not connected, ${type} saved locally only`)
+    }
+  }
+
+  // CRUD operations
   const addSheet = async (sheetData) => {
     const newSheet = {
       id: Date.now() + Math.random(),
       pinned: false,
+      lastUpdated: "Just now",
       ...sheetData,
     }
     const updatedSheets = [...sheets, newSheet]
-    await updateSheetsData(updatedSheets)
+    await updateData("sheets", updatedSheets)
   }
 
   const removeSheet = async (id) => {
     const updatedSheets = sheets.filter((sheet) => sheet.id !== id)
-    await updateSheetsData(updatedSheets)
+    await updateData("sheets", updatedSheets)
   }
 
   const updateSheet = async (id, updates) => {
     const updatedSheets = sheets.map((sheet) =>
       sheet.id === id ? { ...sheet, ...updates, lastUpdated: "Just now" } : sheet,
     )
-    await updateSheetsData(updatedSheets)
+    await updateData("sheets", updatedSheets)
   }
 
   const toggleSheetPin = async (id) => {
     const updatedSheets = sheets.map((sheet) => (sheet.id === id ? { ...sheet, pinned: !sheet.pinned } : sheet))
-    await updateSheetsData(updatedSheets)
+    await updateData("sheets", updatedSheets)
   }
 
   const addTask = async (taskData) => {
@@ -418,29 +435,29 @@ export const DataProvider = ({ children }) => {
       ...taskData,
     }
     const updatedTasks = [...tasks, newTask]
-    await updateTasksData(updatedTasks)
+    await updateData("tasks", updatedTasks)
   }
 
   const toggleTask = async (id) => {
     const updatedTasks = tasks.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task))
-    await updateTasksData(updatedTasks)
+    await updateData("tasks", updatedTasks)
   }
 
   const removeTask = async (id) => {
     const updatedTasks = tasks.filter((task) => task.id !== id)
-    await updateTasksData(updatedTasks)
+    await updateData("tasks", updatedTasks)
   }
 
   const updateTask = async (id, updates) => {
     const updatedTasks = tasks.map((task) =>
       task.id === id ? { ...task, ...updates, completed: updates.status === "completed" } : task,
     )
-    await updateTasksData(updatedTasks)
+    await updateData("tasks", updatedTasks)
   }
 
   const toggleTaskPin = async (id) => {
     const updatedTasks = tasks.map((task) => (task.id === id ? { ...task, pinned: !task.pinned } : task))
-    await updateTasksData(updatedTasks)
+    await updateData("tasks", updatedTasks)
   }
 
   // Helper function to sort items with pinned items first
