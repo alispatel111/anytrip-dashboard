@@ -1,45 +1,66 @@
 import express from "express"
 import cors from "cors"
-import { fileURLToPath } from "url"
-import { dirname, join } from "path"
-import fs from "fs"
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 3001
 
-// Enable CORS for all routes with more permissive settings
+// Enhanced CORS configuration
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "https://anytrip-erp.vercel.app",
-      "https://anytrip-dashboard-server.vercel.app",
-      /\.vercel\.app$/,
-      /localhost:\d+$/,
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true)
+
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://anytrip-erp.vercel.app",
+        "https://anytrip-dashboard-server.vercel.app",
+      ]
+
+      // Allow any vercel.app subdomain
+      if (origin.includes(".vercel.app")) {
+        return callback(null, true)
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true)
+      }
+
+      return callback(null, true) // Allow all for now
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
   }),
 )
 
+// Middleware
 app.use(express.json({ limit: "10mb" }))
 app.use(express.urlencoded({ extended: true, limit: "10mb" }))
 
-// Middleware to log requests
+// Enhanced logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`)
+  const timestamp = new Date().toISOString()
+  console.log(`\n🔍 [${timestamp}] ${req.method} ${req.path}`)
+  console.log(`📍 Origin: ${req.get("origin") || "No origin"}`)
+  console.log(`🌐 User-Agent: ${req.get("user-agent") || "No user-agent"}`)
+
   if (req.body && Object.keys(req.body).length > 0) {
-    console.log("Request body:", JSON.stringify(req.body, null, 2))
+    console.log(`📦 Body:`, JSON.stringify(req.body, null, 2))
   }
+
+  // Log response
+  const originalSend = res.send
+  res.send = function (data) {
+    console.log(`📤 Response [${req.method} ${req.path}]:`, res.statusCode)
+    return originalSend.call(this, data)
+  }
+
   next()
 })
 
-// In-memory storage with better default data
+// In-memory storage with persistent data
 let sheetsData = [
   {
     id: 1,
@@ -106,179 +127,185 @@ let tasksData = [
   },
 ]
 
-// Helper function to write JSON files safely (for local development)
-const writeJsonFile = (filename, data) => {
-  try {
-    if (process.env.NODE_ENV !== "production") {
-      const filePath = join(__dirname, "data", filename)
-
-      // Ensure directory exists
-      const dir = dirname(filePath)
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8")
-      console.log(`✅ Successfully updated ${filename}`)
-    }
-    return true
-  } catch (error) {
-    console.error(`❌ Error writing ${filename}:`, error)
-    return false
-  }
-}
-
-// Update sheets with better validation
-app.post("/api/update-sheets", (req, res) => {
-  try {
-    console.log("📝 Updating sheets...")
-    const { sheets } = req.body
-
-    if (!sheets || !Array.isArray(sheets)) {
-      console.error("❌ Invalid sheets data:", sheets)
-      return res.status(400).json({
-        success: false,
-        error: "Invalid sheets data provided - must be an array",
-      })
-    }
-
-    // Validate each sheet has required fields
-    const validSheets = sheets.filter((sheet) => sheet && typeof sheet === "object" && sheet.title && sheet.url)
-
-    if (validSheets.length !== sheets.length) {
-      console.warn("⚠️ Some sheets were invalid and filtered out")
-    }
-
-    sheetsData = validSheets
-    writeJsonFile("sheets.json", validSheets)
-
-    console.log(`✅ Sheets updated successfully: ${validSheets.length} items`)
-
-    res.json({
-      success: true,
-      message: "Sheets updated successfully",
-      count: validSheets.length,
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    console.error("❌ Error in /api/update-sheets:", error)
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    })
-  }
-})
-
-// Update tasks with better validation
-app.post("/api/update-tasks", (req, res) => {
-  try {
-    console.log("📝 Updating tasks...")
-    const { tasks } = req.body
-
-    if (!tasks || !Array.isArray(tasks)) {
-      console.error("❌ Invalid tasks data:", tasks)
-      return res.status(400).json({
-        success: false,
-        error: "Invalid tasks data provided - must be an array",
-      })
-    }
-
-    // Validate each task has required fields
-    const validTasks = tasks.filter((task) => task && typeof task === "object" && task.title)
-
-    if (validTasks.length !== tasks.length) {
-      console.warn("⚠️ Some tasks were invalid and filtered out")
-    }
-
-    tasksData = validTasks
-    writeJsonFile("tasks.json", validTasks)
-
-    console.log(`✅ Tasks updated successfully: ${validTasks.length} items`)
-
-    res.json({
-      success: true,
-      message: "Tasks updated successfully",
-      count: validTasks.length,
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    console.error("❌ Error in /api/update-tasks:", error)
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    })
-  }
-})
-
-// Health check endpoint with more info
+// Health check endpoint
 app.get("/api/health", (req, res) => {
-  res.json({
+  const healthData = {
     status: "OK",
-    message: "AnyTrip Dashboard Server is running",
+    message: "AnyTrip Dashboard Server is running perfectly!",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
     dataStatus: {
       sheets: sheetsData.length,
       tasks: tasksData.length,
     },
-    version: "1.0.0",
-  })
+    version: "2.0.0",
+    uptime: process.uptime(),
+  }
+
+  console.log("✅ Health check successful:", healthData)
+  res.json(healthData)
 })
 
-// Get current data with better error handling
+// Get sheets
 app.get("/api/sheets", (req, res) => {
   try {
     console.log(`📊 Serving ${sheetsData.length} sheets`)
     res.json(sheetsData)
   } catch (error) {
-    console.error("❌ Error reading sheets:", error)
+    console.error("❌ Error serving sheets:", error)
     res.status(500).json({
-      error: "Failed to read sheets data",
+      error: "Failed to get sheets",
       details: error.message,
     })
   }
 })
 
+// Get tasks
 app.get("/api/tasks", (req, res) => {
   try {
     console.log(`📊 Serving ${tasksData.length} tasks`)
     res.json(tasksData)
   } catch (error) {
-    console.error("❌ Error reading tasks:", error)
+    console.error("❌ Error serving tasks:", error)
     res.status(500).json({
-      error: "Failed to read tasks data",
+      error: "Failed to get tasks",
       details: error.message,
     })
   }
 })
 
-// Verify data endpoint
-app.get("/api/verify/:type", (req, res) => {
+// Update sheets
+app.post("/api/update-sheets", (req, res) => {
   try {
-    const { type } = req.params
-    const data = type === "sheets" ? sheetsData : tasksData
+    console.log("📝 Processing sheets update...")
+    const { sheets } = req.body
 
-    res.json({
-      success: true,
-      type: type,
-      itemCount: data.length,
-      lastModified: new Date().toISOString(),
-      data: data,
+    if (!sheets || !Array.isArray(sheets)) {
+      console.error("❌ Invalid sheets data received:", typeof sheets)
+      return res.status(400).json({
+        success: false,
+        error: "Invalid sheets data - must be an array",
+        received: typeof sheets,
+      })
+    }
+
+    // Validate and clean data
+    const validSheets = sheets.filter((sheet) => {
+      return (
+        sheet &&
+        typeof sheet === "object" &&
+        sheet.title &&
+        typeof sheet.title === "string" &&
+        sheet.url &&
+        typeof sheet.url === "string"
+      )
     })
+
+    if (validSheets.length !== sheets.length) {
+      console.warn(`⚠️ Filtered out ${sheets.length - validSheets.length} invalid sheets`)
+    }
+
+    // Update the data
+    sheetsData = validSheets
+    console.log(`✅ Sheets updated successfully: ${validSheets.length} items`)
+
+    const response = {
+      success: true,
+      message: "Sheets updated successfully",
+      count: validSheets.length,
+      timestamp: new Date().toISOString(),
+      filtered: sheets.length - validSheets.length,
+    }
+
+    console.log("📤 Sheets update response:", response)
+    res.json(response)
   } catch (error) {
-    console.error("❌ Error verifying data:", error)
+    console.error("❌ Error updating sheets:", error)
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Internal server error",
+      details: error.message,
     })
   }
 })
 
-// Root endpoint with better info
+// Update tasks
+app.post("/api/update-tasks", (req, res) => {
+  try {
+    console.log("📝 Processing tasks update...")
+    const { tasks } = req.body
+
+    if (!tasks || !Array.isArray(tasks)) {
+      console.error("❌ Invalid tasks data received:", typeof tasks)
+      return res.status(400).json({
+        success: false,
+        error: "Invalid tasks data - must be an array",
+        received: typeof tasks,
+      })
+    }
+
+    // Validate and clean data
+    const validTasks = tasks.filter((task) => {
+      return task && typeof task === "object" && task.title && typeof task.title === "string"
+    })
+
+    if (validTasks.length !== tasks.length) {
+      console.warn(`⚠️ Filtered out ${tasks.length - validTasks.length} invalid tasks`)
+    }
+
+    // Update the data
+    tasksData = validTasks
+    console.log(`✅ Tasks updated successfully: ${validTasks.length} items`)
+
+    const response = {
+      success: true,
+      message: "Tasks updated successfully",
+      count: validTasks.length,
+      timestamp: new Date().toISOString(),
+      filtered: tasks.length - validTasks.length,
+    }
+
+    console.log("📤 Tasks update response:", response)
+    res.json(response)
+  } catch (error) {
+    console.error("❌ Error updating tasks:", error)
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: error.message,
+    })
+  }
+})
+
+// Debug endpoint to check current data
+app.get("/api/debug", (req, res) => {
+  const debugInfo = {
+    timestamp: new Date().toISOString(),
+    server: {
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.version,
+    },
+    data: {
+      sheets: {
+        count: sheetsData.length,
+        items: sheetsData,
+      },
+      tasks: {
+        count: tasksData.length,
+        items: tasksData,
+      },
+    },
+  }
+
+  console.log("🐛 Debug info requested:", debugInfo)
+  res.json(debugInfo)
+})
+
+// Root endpoint
 app.get("/", (req, res) => {
-  res.json({
-    message: "AnyTrip Dashboard API",
-    version: "1.0.0",
+  const info = {
+    message: "🚀 AnyTrip Dashboard API v2.0",
     status: "running",
     timestamp: new Date().toISOString(),
     endpoints: {
@@ -287,13 +314,16 @@ app.get("/", (req, res) => {
       tasks: "GET /api/tasks",
       updateSheets: "POST /api/update-sheets",
       updateTasks: "POST /api/update-tasks",
-      verify: "GET /api/verify/:type",
+      debug: "GET /api/debug",
     },
     dataStatus: {
       sheets: sheetsData.length,
       tasks: tasksData.length,
     },
-  })
+  }
+
+  console.log("🏠 Root endpoint accessed:", info)
+  res.json(info)
 })
 
 // Error handling middleware
@@ -303,26 +333,31 @@ app.use((error, req, res, next) => {
     success: false,
     error: "Internal server error",
     message: error.message,
+    timestamp: new Date().toISOString(),
   })
 })
 
 // 404 handler
 app.use((req, res) => {
+  console.log(`❌ 404 - Not found: ${req.method} ${req.path}`)
   res.status(404).json({
     success: false,
     error: "Endpoint not found",
     path: req.path,
     method: req.method,
+    timestamp: new Date().toISOString(),
   })
 })
 
 // Start server
 if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`)
+    console.log(`\n🚀 AnyTrip Dashboard Server v2.0`)
+    console.log(`📍 Running on: http://localhost:${PORT}`)
     console.log(`🔗 Health check: http://localhost:${PORT}/api/health`)
+    console.log(`🐛 Debug info: http://localhost:${PORT}/api/debug`)
     console.log(`📊 Data status: Sheets: ${sheetsData.length}, Tasks: ${tasksData.length}`)
-    console.log("✨ Ready to serve API requests!")
+    console.log(`✨ Ready to serve API requests!\n`)
   })
 }
 
