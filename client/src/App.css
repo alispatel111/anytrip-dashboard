@@ -154,6 +154,25 @@ body {
   gap: 1rem;
 }
 
+/* Server Status Indicator */
+.server-status {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+.server-status.connected {
+  color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.server-status.disconnected {
+  color: var(--accent-orange);
+  background: rgba(245, 158, 11, 0.1);
+}
+
 .theme-toggle {
   background: none;
   border: none;
@@ -1072,175 +1091,6 @@ body {
 
 .empty-preview p {
   margin-bottom: 1rem;
-}
-
-/* Upload Files Page */
-.upload-section {
-  margin-bottom: 2rem;
-}
-
-.upload-zone {
-  border: 2px dashed var(--border-color);
-  border-radius: var(--radius);
-  padding: 3rem 2rem;
-  text-align: center;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.upload-zone:hover,
-.upload-zone.drag-over {
-  border-color: var(--accent-blue);
-  background: rgba(59, 130, 246, 0.05);
-}
-
-.upload-zone svg {
-  color: var(--text-muted);
-  margin-bottom: 1rem;
-}
-
-.upload-zone h3 {
-  color: var(--text-primary);
-  margin-bottom: 0.5rem;
-}
-
-.upload-zone p {
-  color: var(--text-secondary);
-  margin-bottom: 1.5rem;
-}
-
-.upload-btn {
-  background: var(--accent-blue);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius);
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.upload-btn:hover {
-  background: #2563eb;
-}
-
-.files-section {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-}
-
-.files-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-}
-
-.file-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  transition: all 0.2s ease;
-}
-
-.file-card:hover {
-  background: var(--bg-tertiary);
-}
-
-.file-icon {
-  color: var(--text-secondary);
-}
-
-.file-info {
-  flex: 1;
-}
-
-.file-info h4 {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-}
-
-.file-info p {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-}
-
-.upload-time {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.file-actions {
-  display: flex;
-  gap: 0.25rem;
-}
-
-/* Downloads Page */
-.downloads-section {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-}
-
-.downloads-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.download-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  transition: all 0.2s ease;
-}
-
-.download-item:hover {
-  background: var(--bg-tertiary);
-}
-
-.download-icon {
-  color: var(--text-secondary);
-}
-
-.download-info {
-  flex: 1;
-}
-
-.download-info h4 {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-}
-
-.download-info p {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-}
-
-.download-time {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.download-actions {
-  display: flex;
-  gap: 0.25rem;
 }
 
 /* Settings Page */
